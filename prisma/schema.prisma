@@ -1,0 +1,671 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// CORE / AUTH
+// ==========================================
+
+model Company {
+  id          String    @id @default(uuid())
+  name        String
+  domain      String?   @unique
+  logo        String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+  
+  users       User[]
+  employees   Employee[]
+  jobs        Job[]
+  leads           Lead[]
+  serviceRequests ServiceRequest[]
+  projects        Project[]
+  campaigns       Campaign[]
+  invoices        Invoice[]
+  automations     Automation[]
+  
+  @@index([deletedAt])
+}
+
+model Role {
+  id          String    @id @default(uuid())
+  name        String    @unique // e.g., "ADMIN", "MANAGER", "EMPLOYEE"
+  description String?
+  permissions String    // JSON string of permissions or basic string
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  users       User[]
+}
+
+model User {
+  id          String    @id @default(uuid())
+  email       String    @unique
+  password    String
+  firstName   String
+  lastName    String
+  avatar      String?
+  companyId   String
+  roleId      String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  role        Role      @relation(fields: [roleId], references: [id])
+  
+  activityLogs    ActivityLog[]
+  serviceRequests ServiceRequest[]
+  projects        Project[]
+  invoices        Invoice[]
+  announcements   Announcement[]
+  automations     Automation[]
+  campaigns       Campaign[]
+  websiteProjects WebsiteProject[]
+  websiteCollaborations WebsiteCollaborator[]
+  mobileProjects  MobileProject[]
+  mobileCollaborations MobileCollaborator[] @relation("MobileCollabs")
+
+  @@index([companyId])
+  @@index([deletedAt])
+}
+
+// ==========================================
+// HR MODULE
+// ==========================================
+
+model Employee {
+  id             String    @id @default(uuid())
+  companyId      String
+  firstName      String
+  lastName       String
+  email          String    @unique
+  phone          String?
+  department     String?
+  designation    String?
+  joiningDate    DateTime
+  salary         Float?
+  status         String    @default("ACTIVE") // ACTIVE, ON_LEAVE, TERMINATED
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
+
+  company        Company   @relation(fields: [companyId], references: [id])
+  attendance     Attendance[]
+  leaves         Leave[]
+  payroll        Payroll[]
+
+  @@index([companyId])
+}
+
+model Attendance {
+  id          String    @id @default(uuid())
+  employeeId  String
+  date        DateTime
+  checkIn     DateTime?
+  checkOut    DateTime?
+  status      String    // PRESENT, ABSENT, HALF_DAY
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+
+  @@index([employeeId, date])
+}
+
+model Leave {
+  id          String    @id @default(uuid())
+  employeeId  String
+  type        String    // SICK, CASUAL, ANNUAL
+  startDate   DateTime
+  endDate     DateTime
+  reason      String?
+  status      String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+}
+
+model Payroll {
+  id          String    @id @default(uuid())
+  employeeId  String
+  month       Int
+  year        Int
+  basicSalary Float
+  bonus       Float     @default(0)
+  deductions  Float     @default(0)
+  netSalary   Float
+  status      String    @default("DRAFT") // DRAFT, PAID
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  employee    Employee  @relation(fields: [employeeId], references: [id])
+}
+
+// ==========================================
+// RECRUITMENT ATS MODULE
+// ==========================================
+
+model Job {
+  id          String    @id @default(uuid())
+  companyId   String
+  title       String
+  description String
+  department  String
+  location    String
+  type        String    // FULL_TIME, PART_TIME, CONTRACT
+  status      String    @default("OPEN") // OPEN, CLOSED, DRAFT
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  candidates  Candidate[]
+
+  @@index([companyId])
+}
+
+model Candidate {
+  id          String    @id @default(uuid())
+  jobId       String
+  firstName   String
+  lastName    String
+  email       String
+  phone       String?
+  resumeUrl   String?
+  stage       String    @default("APPLIED") // APPLIED, SCREENING, INTERVIEW, OFFER, HIRED, REJECTED
+  source      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  job         Job       @relation(fields: [jobId], references: [id])
+
+  @@index([jobId])
+}
+
+// ==========================================
+// CRM MODULE
+// ==========================================
+
+model Lead {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  email       String?
+  phone       String?
+  companyName String?
+  status      String    @default("NEW") // NEW, CONTACTED, QUALIFIED, LOST
+  score       Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  company     Company         @relation(fields: [companyId], references: [id])
+  deals       Deal[]
+  tasks       Task[]
+  serviceRequest ServiceRequest?
+  project     Project?
+
+  @@index([companyId])
+}
+
+model Contact {
+  id          String    @id @default(uuid())
+  firstName   String
+  lastName    String
+  email       String    @unique
+  phone       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Deal {
+  id          String    @id @default(uuid())
+  leadId      String
+  title       String
+  value       Float
+  stage       String    // PROSPECT, PROPOSAL, NEGOTIATION, WON, LOST
+  expectedDate DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lead        Lead      @relation(fields: [leadId], references: [id])
+  invoices    Invoice[]
+  
+  @@index([leadId])
+}
+
+model ServiceRequest {
+  id          String    @id @default(uuid())
+  userId      String    // The client requesting the service
+  companyId   String    // The service provider company
+  serviceType String    // HR, Marketing, CRM, etc
+  budget      Float?
+  timeline    String?
+  priority    String    @default("NORMAL") // LOW, NORMAL, HIGH
+  notes       String?
+  status      String    @default("PENDING") // PENDING, REVIEWING, APPROVED, REJECTED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id])
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  // A service request can spawn a lead
+  leadId      String?   @unique
+  lead        Lead?     @relation(fields: [leadId], references: [id])
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+model Project {
+  id          String    @id @default(uuid())
+  companyId   String
+  clientId    String    // The user who is the client
+  leadId      String?   @unique // Linked CRM Lead
+  title       String
+  description String?
+  category    String    @default("General")
+  progress    Int       @default(0)
+  status      String    @default("ON_TRACK") // ON_TRACK, AT_RISK, COMPLETED, BLOCKED
+  value       Float     @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  serviceRequestId String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  client      User      @relation(fields: [clientId], references: [id])
+  lead        Lead?     @relation(fields: [leadId], references: [id])
+
+  @@index([companyId])
+  @@index([clientId])
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  leadId      String?
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      String    @default("TODO") // TODO, IN_PROGRESS, DONE
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  lead        Lead?     @relation(fields: [leadId], references: [id])
+}
+
+// ==========================================
+// MARKETING MODULE
+// ==========================================
+
+model Campaign {
+  id          String    @id @default(uuid())
+  companyId   String
+  clientId    String?
+  name        String
+  type        String    // EMAIL, SOCIAL, ADS
+  status      String    @default("DRAFT") // DRAFT, ACTIVE, COMPLETED
+  budget      Float?
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  client      User?     @relation(fields: [clientId], references: [id])
+
+  @@index([companyId])
+  @@index([clientId])
+}
+
+// ==========================================
+// FINANCE MODULE
+// ==========================================
+
+model Invoice {
+  id          String    @id @default(uuid())
+  companyId   String
+  clientId    String?
+  dealId      String?
+  invoiceNo   String    @unique
+  clientName  String
+  amount      Float
+  tax         Float     @default(0)
+  total       Float
+  status            String    @default("UNPAID") // UNPAID, PAID, OVERDUE
+  dueDate           DateTime
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  razorpaySignature String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  client      User?     @relation(fields: [clientId], references: [id])
+  deal        Deal?     @relation(fields: [dealId], references: [id])
+  
+  @@index([companyId])
+  @@index([clientId])
+}
+
+model Expense {
+  id          String    @id @default(uuid())
+  category    String
+  amount      Float
+  date        DateTime
+  receiptUrl  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ==========================================
+// SYSTEM / AUTOMATION MODULE
+// ==========================================
+
+model Automation {
+  id          String    @id @default(uuid())
+  companyId   String
+  clientId    String?
+  name        String
+  type        String    @default("Agent") // e.g., LLM Agent, Workflow, OCR Agent
+  status      String    @default("ONLINE") // ONLINE, OFFLINE
+  usage       String    @default("Medium") // Low, Medium, High
+  latency     String    @default("-")
+  trigger     String    @default("MANUAL")
+  action      String    @default("EXECUTE")
+  isActive    Boolean   @default(true)
+  config      String    @default("{}") // JSON config
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company     Company   @relation(fields: [companyId], references: [id])
+  client      User?     @relation(fields: [clientId], references: [id])
+
+  @@index([companyId])
+  @@index([clientId])
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  userId      String
+  title       String
+  message     String
+  isRead      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  
+  @@index([userId])
+}
+
+model ActivityLog {
+  id          String    @id @default(uuid())
+  userId      String?
+  action      String
+  entityType  String
+  entityId    String?
+  details     String?
+  createdAt   DateTime  @default(now())
+
+  user        User?     @relation(fields: [userId], references: [id])
+}
+
+model Announcement {
+  id          String    @id @default(uuid())
+  title       String
+  content     String
+  isActive    Boolean   @default(true)
+  authorId    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  author      User      @relation(fields: [authorId], references: [id])
+  
+  @@index([authorId])
+}
+
+// ==========================================
+// WEBSITE STUDIO MODULE
+// ==========================================
+
+model WebsiteProject {
+  id               String    @id @default(uuid())
+  ownerId          String
+  companyId        String?
+  name             String
+  description      String?
+  projectType      String    @default("HTML") // HTML, REACT
+  template         String    @default("Blank")
+  visibility       String    @default("Private") // Private, Team
+  status           String    @default("ACTIVE") // ACTIVE, DISABLED
+  thumbnail        String?
+  publishStatus    String    @default("UNPUBLISHED") // UNPUBLISHED, PUBLISHED
+  publishedSlug    String?   @unique
+  publishedAt      DateTime?
+  publishedVersion Int       @default(0)
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  owner            User      @relation(fields: [ownerId], references: [id])
+  files            WebsiteFile[]
+  assets           WebsiteAsset[]
+  collaborators    WebsiteCollaborator[]
+  snapshots        WebsiteSnapshot[]
+
+  @@index([ownerId])
+  @@index([companyId])
+}
+
+model WebsiteFile {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  path        String
+  type        String    @default("file") // file, folder
+  language    String?   // html, css, javascript, typescript, json, null for folder
+  content     String    @default("")
+  version     Int       @default(1)
+  createdBy   String
+  updatedBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     WebsiteProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+}
+
+model WebsiteAsset {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  url         String
+  publicId    String?
+  mimeType    String
+  size        Int
+  uploadedBy  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     WebsiteProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model WebsiteCollaborator {
+  id          String    @id @default(uuid())
+  projectId   String
+  userId      String
+  role        String    @default("VIEWER") // OWNER, EDITOR, VIEWER
+  addedAt     DateTime  @default(now())
+
+  project     WebsiteProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model WebsiteSnapshot {
+  id             String    @id @default(uuid())
+  projectId      String
+  createdBy      String
+  snapshotType   String    @default("manual") // manual, autosave, publish
+  projectVersion Int
+  files          String    // JSON stringified array of file states
+  createdAt      DateTime  @default(now())
+
+  project        WebsiteProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// MOBILE APP STUDIO MODULE
+// ==========================================
+
+model MobileProject {
+  id               String    @id @default(uuid())
+  ownerId          String
+  companyId        String?
+  name             String
+  description      String?
+  framework        String    @default("VISUAL") // VISUAL, FLUTTER, REACT_NATIVE
+  targetPlatforms  String    @default("Android") // Android, iOS, Android + iOS
+  template         String    @default("Blank")
+  visibility       String    @default("Private") // Private, Team
+  status           String    @default("ACTIVE") // ACTIVE, DISABLED
+  appIcon          String?
+  packageId        String?
+  versionName      String    @default("1.0.0")
+  versionCode      Int       @default(1)
+  orientation      String    @default("portrait")
+  themeConfig      String?   // JSON representation of ThemeData
+  version          Int       @default(1)
+  isDisabled       Boolean   @default(false)
+  disabledAt       DateTime?
+  disabledBy       String?
+  disableReason    String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  deletedAt        DateTime?
+
+  owner            User      @relation(fields: [ownerId], references: [id])
+  files            MobileFile[]
+  screens          MobileScreen[]
+  assets           MobileAsset[]
+  collaborators    MobileCollaborator[]
+  snapshots        MobileSnapshot[]
+  builds           MobileBuild[]
+
+  @@index([ownerId])
+  @@index([companyId])
+  @@index([framework])
+}
+
+model MobileFile {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  path        String
+  type        String    @default("file") // file, folder
+  language    String?   // dart, json, yaml, null for folder
+  content     String    @default("")
+  isGenerated Boolean   @default(false)
+  version     Int       @default(1)
+  createdBy   String
+  updatedBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     MobileProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+}
+
+model MobileScreen {
+  id          String    @id @default(uuid())
+  projectId   String
+  screenId    String
+  name        String
+  route       String
+  isStartScreen Boolean @default(false)
+  uiSchema    String    @default("{}") // JSON string of the visual AST
+  version     Int       @default(1)
+  createdBy   String
+  updatedBy   String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     MobileProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, screenId])
+  @@unique([projectId, route])
+}
+
+model MobileAsset {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  url         String
+  publicId    String?
+  mimeType    String
+  size        Int
+  uploadedBy  String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  project     MobileProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MobileCollaborator {
+  id          String    @id @default(uuid())
+  projectId   String
+  userId      String
+  role        String    @default("VIEWER") // OWNER, EDITOR, VIEWER
+  addedAt     DateTime  @default(now())
+
+  project     MobileProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User          @relation("MobileCollabs", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+}
+
+model MobileSnapshot {
+  id             String    @id @default(uuid())
+  projectId      String
+  createdBy      String
+  snapshotType   String    @default("manual") // manual, autosave, build, export
+  projectVersion Int
+  projectState   String    // JSON stringified state of all files and screens
+  createdAt      DateTime  @default(now())
+
+  project        MobileProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model MobileBuild {
+  id             String    @id @default(uuid())
+  projectId      String
+  buildNumber    Int
+  platform       String    // ANDROID, IOS
+  buildType      String    // APK, APPBUNDLE, IPA
+  status         String    @default("QUEUED") // QUEUED, BUILDING, SUCCESS, FAILED
+  triggeredBy    String
+  artifactReference String?
+  logsReference  String?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  project        MobileProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}

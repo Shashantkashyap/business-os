@@ -1,0 +1,11 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+/generated/prisma
+
+mongodb+srv://shashantkashyap999_db_user:Gax0cTpWiSy07E1O@cluster0.znzbuf1.mongodb.net/?appName=Cluster0
+
+
+shashantkashyap999_db_user  
+Gax0cTpWiSy07E1O
